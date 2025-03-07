@@ -1,9 +1,34 @@
 from re import findall
 import os
 import sys
+import argparse
 from sort_input import tier_sort
 from copy import deepcopy
+from pathlib import Path
 
+
+parser = argparse.ArgumentParser()
+parser.add_argument(
+    '-tr',
+    '--transitive',
+    action='store_true',
+    help='set m_i_j=1 for transitive edges'
+)
+parser.add_argument(
+    '-o',
+    '--output',
+    type=str,
+    default=None,
+    help='output directory for .lp files'
+)
+parser.add_argument(
+    '-i',
+    '--input',
+    required=True,
+    type=str,
+    help='path to input file or directory'
+)
+args = parser.parse_args()
 
 node_num = {}
 edge_num = {}
@@ -269,27 +294,20 @@ def write_solver_input(file_path, n, children, sizes, nodes, parents):
 
 
 # читает файлы из папки parser_inputs, пишет входные данные для солвера в папку solver_inputs
-def parse(type, path_inp, sort="default"):
+def parse(sort="default"):
     files = []
-    if type == "dir":
-        files = os.listdir(path_inp)
+    input_path = args.input
+    if os.path.isdir(args.input):
+        files = os.listdir(args.input)
     else:
-        files.append(path_inp)
+        files.append(args.input[args.input.rfind("/")+1:])
+        input_path = args.input[:args.input.rfind("/")+1]
     for file_name in files:
-        path = path_inp
-        if type == "dir":
-            path += "/" + file_name
-        idx = path.rfind("/") + 1
-        if idx == -1:
-            idx = 0
-        solver_tasks.append(path[idx:-4])
-        file_name = path[idx:-4]
-        nodes, sizes, children, parents = read_pars_input(path, sort)
+        nodes, sizes, children, parents = read_pars_input(input_path + file_name, sort)
+        file_name = file_name[:file_name.rfind(".")]
+        solver_tasks.append(file_name)
         n = len(nodes)
-        if flag_transitive:
-            path = "inputs/old_tr/order/" + file_name + "_" + sort + "_input.lp"
-        else:
-            path = "inputs/old_no_tr/order/" + file_name + "_" + sort + "_input.lp"
+        path = args.output + file_name + "_" + sort + "_input.lp"
         node_num[file_name] = n
         n = 0
         for child in children:
@@ -299,20 +317,25 @@ def parse(type, path_inp, sort="default"):
 
 
 if __name__ == "__main__":
-    type = None
-    sort = "default"
-    if len(sys.argv) == 1:
-        print("Expected at least 1 argument.\n First arg: path to file")
-    elif len(sys.argv) > 2:
-        flag_transitive = 1
-    else:
-        if os.path.isfile(sys.argv[1]):
-            type = "file"
+    curpath = os.getcwd()
+    if args.output is None:
+        if args.transitive:
+            args.output = curpath + "/" + "inputs/old_tr/order/"
         else:
-            print("File  doesn't exist")
-    if type is not None:
-        parse(type, sys.argv[1])
-        parse(type, sys.argv[1], "tiers")
-        parse(type, sys.argv[1], "reverse_tiers")
-        parse(type, sys.argv[1], "up_right")
-        parse(type, sys.argv[1], "down_left")
+            args.output = curpath + "/" + "inputs/old_no_tr/order/"
+    else:
+        if curpath not in args.output:
+            args.output = curpath + "/" + args.output
+        if args.output[:-1] != '/':
+            args.output += '/'
+    Path.mkdir(Path(args.output), parents=True, exist_ok=True)
+    if curpath not in args.input:
+        args.input = curpath + "/" + args.input
+    if not os.path.isfile(args.input) and not os.path.isdir(args.input):
+        print("Received input path isn't a directory or file. Try to enter absolute path")
+        exit(1)
+    parse("default")
+    parse("tiers")
+    parse("reverse_tiers")
+    parse("up_right")
+    parse("down_left")
