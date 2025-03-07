@@ -304,7 +304,8 @@ def parse(sort="default"):
         input_path = args.input[:args.input.rfind("/")+1]
     for file_name in files:
         nodes, sizes, children, parents = read_pars_input(input_path + file_name, sort)
-        file_name = file_name[:file_name.rfind(".")]
+        if file_name.find(".") != -1:
+            file_name = file_name[:file_name.rfind(".")]
         solver_tasks.append(file_name)
         n = len(nodes)
         path = args.output + file_name + "_" + sort + "_input.lp"
