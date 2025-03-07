@@ -15,6 +15,13 @@ parser.add_argument(
     help='set m_i_j=1 for transitive edges'
 )
 parser.add_argument(
+    '-r',
+    '--reduce',
+    type=str,
+    default='new',
+    help='set reduce "new" or "old"'
+)
+parser.add_argument(
     '-o',
     '--output',
     type=str,
@@ -91,7 +98,7 @@ def define_m(n, children, nodes, parents):
         find_all_children(node, all_children, visited)
     for i in nodes:
         for j in nodes:
-            if flag_transitive:
+            if args.transitive:
                 if i == j or j in all_children[i]:
                     m_bounds.append("m_" + str(i) + "_" + str(j) + " = 1")
             else:
@@ -161,10 +168,13 @@ def define_s(n, nodes):
 
 def define_f(n, sizes, nodes):
     f_subj = []
+    var = " w_"
+    if args.reduce == "new":
+        var = " y_"
     for k in nodes:
         s = "F"
         for i in nodes:
-            s += " - " + str(sizes[i]) + " w_" + str(i) + "_" + str(k)
+            s += " - " + str(sizes[i]) + var + str(i) + "_" + str(k)
         s += " >= 0"
         f_subj.append(s)
     return f_subj
@@ -211,6 +221,61 @@ def define_l_w(n, children, nodes):
     return l_bounds, l_subj, w_subj, l_binary, w_binary
 
 
+def define_y(n, children, nodes):
+    y_bounds = []
+    y_subj = []
+    y_binary = []
+    subj10, subj11, subj12 = 0, 0, 0
+    for i in nodes:
+        for k in nodes:
+            y_binary.append("y_" + str(i) + "_" + str(k))
+            if i == k:
+                # все y_i_i = 1
+                y_bounds.append("y_" + str(i) + "_" + str(k) + " = 1")
+                continue
+
+            if k in children[i]:
+                # для всех ребер y_i_k = 1
+                y_bounds.append("y_" + str(i) + "_" + str(k) + " = 1")
+                continue
+            else:
+                y_subj.append(
+                    "y_"
+                    + str(i)
+                    + "_"
+                    + str(k)
+                    + " - "
+                    + "m_"
+                    + str(i)
+                    + "_"
+                    + str(k)
+                    + " <= 0"
+                )
+                subj10 += 1
+                y = "y_" + str(i) + "_" + str(k)
+                ys = y
+                for j in children[i]:
+                    ys += " - m_" + str(k) + "_" + str(j)
+                    y_subj.append(
+                        y
+                        + " - m_"
+                        + str(k)
+                        + "_"
+                        + str(j)
+                        + " - m_"
+                        + str(i)
+                        + "_"
+                        + str(k)
+                        + " >= -1"
+                    )
+                    subj12 += 1
+                if ys != y:
+                    y_subj.append(ys + " <= 0")
+                    subj11 += 1
+    print(subj10, subj11, subj12)
+    return y_bounds, y_subj, y_binary
+
+
 def write_solver_input(file_path, n, children, sizes, nodes, parents):
     m_bounds = []
     m_binary = []
@@ -226,6 +291,9 @@ def write_solver_input(file_path, n, children, sizes, nodes, parents):
     l_binary = []
     w_binary = []
     p_subj = []
+    y_binary = []
+    y_subj = []
+    y_bounds = []
 
     # m  (2)(3)(6)
     m_bounds, m_binary, m_subj = define_m(n, children, nodes, parents)
@@ -233,8 +301,12 @@ def write_solver_input(file_path, n, children, sizes, nodes, parents):
     s_int, s_subj_1, s_subj_4, s_subj_5 = define_s(n, nodes)
     # F  (7б) F >= P_k
     f_subj = define_f(n, sizes, nodes)
-    # l w (8)(9)(10)
-    l_bounds, l_subj, w_subj, l_binary, w_binary = define_l_w(n, children, nodes)
+    if args.reduce == "old":
+        # l w (8)(9)(10)
+        l_bounds, l_subj, w_subj, l_binary, w_binary = define_l_w(n, children, nodes)
+    else:
+        # y
+        y_bounds, y_subj, y_binary = define_y(n, children, nodes)
     print(file_path)
 
     f = open(file_path, "w+")
@@ -257,6 +329,8 @@ def write_solver_input(file_path, n, children, sizes, nodes, parents):
         f.write("    " + i + "\n")
     for i in f_subj:
         f.write("    " + i + "\n")
+    for i in y_subj:
+        f.write("    " + i + "\n")
 
     # try adding bounds for F and s
     f.write("Bounds\n")
@@ -264,6 +338,9 @@ def write_solver_input(file_path, n, children, sizes, nodes, parents):
     for i in m_bounds:
         f.write("    " + i + "\n")
     for i in l_bounds:
+        f.write("    " + i + "\n")
+
+    for i in y_bounds:
         f.write("    " + i + "\n")
 
     f.write("Integer\n")
@@ -277,6 +354,9 @@ def write_solver_input(file_path, n, children, sizes, nodes, parents):
     for i in l_binary:
         f.write("    " + i + "\n")
     for i in w_binary:
+        f.write("    " + i + "\n")
+
+    for i in y_binary:
         f.write("    " + i + "\n")
 
     f.write("End\n")
@@ -319,11 +399,14 @@ def parse(sort="default"):
 
 if __name__ == "__main__":
     curpath = os.getcwd()
+    if args.reduce != "old" and args.reduce != "new":
+        print('Please, use only "new" or "old" for reduce flag')
+        exit(1)
     if args.output is None:
         if args.transitive:
-            args.output = curpath + "/" + "inputs/old_tr/order/"
+            args.output = curpath + "/" + "inputs/" + args.reduce + "_tr/order/"
         else:
-            args.output = curpath + "/" + "inputs/old_no_tr/order/"
+            args.output = curpath + "/" + "inputs/" + args.reduce + "_no_tr/order/"
     else:
         if curpath not in args.output:
             args.output = curpath + "/" + args.output
