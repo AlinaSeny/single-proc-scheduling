@@ -1,10 +1,10 @@
 from re import findall
 import os
-import sys
 import argparse
 from sort_input import tier_sort
 from copy import deepcopy
 from pathlib import Path
+from typing import List, Dict, Set
 
 
 parser = argparse.ArgumentParser()
@@ -37,15 +37,12 @@ parser.add_argument(
 )
 args = parser.parse_args()
 
-node_num = {}
-edge_num = {}
 solver_tasks = []
-flag_transitive = 0
 
 
-def read_pars_input(file_path, sort):
+def read_pars_input(file_path: str, sort: str) -> (Set[str], Dict[str, str], Dict[str, List[str]], List[str]):
     f = open(file_path, "r")
-    nodes = []
+    nodes = set()
     sizes = {}
     children = {}
     nodes_with_par = set()
@@ -56,7 +53,7 @@ def read_pars_input(file_path, sort):
         nums = findall(r"\d+", line)
         if not nums:
             continue
-        nodes.append(nums[0])
+        nodes.add(nums[0])
         sizes[nums[0]] = nums[1]
         children[nums[0]] = nums[2:]
         for node in nums[2:]:
@@ -68,12 +65,11 @@ def read_pars_input(file_path, sort):
         nodes, children = tier_sort(nodes, sizes, children)
     elif sort == "reverse_tiers":
         nodes, children = tier_sort(nodes, sizes, children, True)
-    all_child = deepcopy(children)
     parents = list(set(nodes) - nodes_with_par)
     return nodes, sizes, children, parents
 
 
-def find_all_children(i, children, visited):
+def find_all_children(i: str, children: Dict[str, List[str]], visited: Dict[str, bool]):
     for j in children[i]:
         if not visited[j]:
             visited[j] = True
@@ -83,14 +79,12 @@ def find_all_children(i, children, visited):
                 children[i].append(transit_child)
 
 
-def define_m(n, children, nodes, parents):
-    # m  (2)(3)(6)
+def define_m(children: Dict[str, List[str]], nodes: List[str], parents: List[str]) -> (List[str], List[str], List[str]):
     m_bounds = []
     m_binary = []
     m_subj = []
     all_children = deepcopy(children)
     visited = {}
-    added = {}
     for node in nodes:
         visited[node] = False
     for node in parents:
@@ -121,7 +115,7 @@ def define_m(n, children, nodes, parents):
     return m_bounds, m_binary, m_subj
 
 
-def define_s(n, nodes):
+def define_s(nodes: List[str]) -> (List[str], List[str], List[str], List[str]):
     s_int = []
     s_subj_1 = []
     s_subj_4 = []
@@ -132,12 +126,11 @@ def define_s(n, nodes):
         for j in nodes:
             s1 += " - m_" + str(j) + "_" + str(i)
             if int(i) < int(j):
-                # s_subj_4.append(f's_{i} + {n} m_{i}_{j} - s_{j} <= {n - 1}')
                 s_subj_4.append(
                     "s_"
                     + str(i)
                     + " + "
-                    + str(n)
+                    + str(len(nodes))
                     + " m_"
                     + str(i)
                     + "_"
@@ -145,7 +138,7 @@ def define_s(n, nodes):
                     + " - s_"
                     + str(j)
                     + " <= "
-                    + str(n - 1)
+                    + str(len(nodes) - 1)
                 )
                 # s_subj_5.append(f's_{j} - s_{i} - {n} m_{i}_{j} <= -1')
                 s_subj_5.append(
@@ -154,7 +147,7 @@ def define_s(n, nodes):
                     + " - s_"
                     + str(i)
                     + " - "
-                    + str(n)
+                    + str(len(nodes))
                     + " m_"
                     + str(i)
                     + "_"
@@ -166,7 +159,7 @@ def define_s(n, nodes):
     return s_int, s_subj_1, s_subj_4, s_subj_5
 
 
-def define_f(n, sizes, nodes):
+def define_f(sizes: Dict[str, str], nodes: List[str]) -> List[str]:
     f_subj = []
     var = " w_"
     if args.reduce == "new":
@@ -180,7 +173,7 @@ def define_f(n, sizes, nodes):
     return f_subj
 
 
-def define_l_w(n, children, nodes):
+def define_l_w(children: Dict[str, List[str]], nodes: List[str]) -> (List[str], List[str], List[str], List[str], List[str]):
     l_bounds = []
     l_subj = []  # (8)
     w_subj = []  # (10)
@@ -221,7 +214,7 @@ def define_l_w(n, children, nodes):
     return l_bounds, l_subj, w_subj, l_binary, w_binary
 
 
-def define_y(n, children, nodes):
+def define_y(children: Dict[str, List[str]], nodes: List[str]) -> (List[str], List[str], List[str]):
     y_bounds = []
     y_subj = []
     y_binary = []
@@ -276,37 +269,28 @@ def define_y(n, children, nodes):
     return y_bounds, y_subj, y_binary
 
 
-def write_solver_input(file_path, n, children, sizes, nodes, parents):
-    m_bounds = []
-    m_binary = []
-    m_subj = []
-    s_int = []
-    s_subj_1 = []
-    s_subj_4 = []
-    s_subj_5 = []
-    f_subj = []
+def write_solver_input(file_path: str, children: Dict[str, List[str]], sizes: Dict[str, str], nodes: List[str], parents: List[str]):
     l_bounds = []
-    l_subj = []  # (8)
-    w_subj = []  # (10)
+    l_subj = []
+    w_subj = []
     l_binary = []
     w_binary = []
-    p_subj = []
     y_binary = []
     y_subj = []
     y_bounds = []
 
     # m  (2)(3)(6)
-    m_bounds, m_binary, m_subj = define_m(n, children, nodes, parents)
+    m_bounds, m_binary, m_subj = define_m(children, nodes, parents)
     # s  (1)(4)(5)
-    s_int, s_subj_1, s_subj_4, s_subj_5 = define_s(n, nodes)
+    s_int, s_subj_1, s_subj_4, s_subj_5 = define_s(nodes)
     # F  (7б) F >= P_k
-    f_subj = define_f(n, sizes, nodes)
+    f_subj = define_f(sizes, nodes)
     if args.reduce == "old":
         # l w (8)(9)(10)
-        l_bounds, l_subj, w_subj, l_binary, w_binary = define_l_w(n, children, nodes)
+        l_bounds, l_subj, w_subj, l_binary, w_binary = define_l_w(children, nodes)
     else:
         # y
-        y_bounds, y_subj, y_binary = define_y(n, children, nodes)
+        y_bounds, y_subj, y_binary = define_y(children, nodes)
     print(file_path)
 
     f = open(file_path, "w+")
@@ -361,20 +345,9 @@ def write_solver_input(file_path, n, children, sizes, nodes, parents):
 
     f.write("End\n")
     f.close()
-    print(len(m_binary) + len(w_binary) + len(l_binary) + len(s_int))
-    print(
-        len(m_subj)
-        + len(s_subj_4)
-        + len(s_subj_1)
-        + len(s_subj_5)
-        + len(l_subj)
-        + len(w_subj)
-        + len(f_subj)
-    )
 
 
-# читает файлы из папки parser_inputs, пишет входные данные для солвера в папку solver_inputs
-def parse(sort="default"):
+def parse(sort: str):
     files = []
     input_path = args.input
     if os.path.isdir(args.input):
@@ -387,14 +360,8 @@ def parse(sort="default"):
         if file_name.find(".") != -1:
             file_name = file_name[:file_name.rfind(".")]
         solver_tasks.append(file_name)
-        n = len(nodes)
         path = args.output + file_name + "_" + sort + "_input.lp"
-        node_num[file_name] = n
-        n = 0
-        for child in children:
-            n += len(child)
-        edge_num[file_name] = n
-        write_solver_input(path, n, children, sizes, nodes, parents)
+        write_solver_input(path, children, sizes, nodes, parents)
 
 
 if __name__ == "__main__":
