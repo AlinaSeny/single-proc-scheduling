@@ -40,7 +40,10 @@ args = parser.parse_args()
 solver_tasks = []
 
 
-def read_pars_input(file_path: str, sort: str) -> (Set[str], Dict[str, str], Dict[str, List[str]], List[str]):
+def read_parser_input(file_path: str, sort: str) -> (List[str], Dict[str, str], Dict[str, List[str]], List[str]):
+    '''
+    Читает входной файл и возвращает данные в виде списка узлов, словаря размеров, словаря потомков и списка родителей. В зависимости от параметра sort данные могут быть отсортированы различными способами.
+    '''
     f = open(file_path, "r")
     nodes = []
     sizes = {}
@@ -70,6 +73,7 @@ def read_pars_input(file_path: str, sort: str) -> (Set[str], Dict[str, str], Dic
 
 
 def find_all_children(i: str, children: Dict[str, List[str]], visited: Dict[str, bool]):
+    '''Рекурсивно находит всех потомков для заданного узла i и обновляет словарь children. Вызывается, если определен флаг транзитивности.'''
     for j in children[i]:
         if not visited[j]:
             visited[j] = True
@@ -80,6 +84,7 @@ def find_all_children(i: str, children: Dict[str, List[str]], visited: Dict[str,
 
 
 def define_m(children: Dict[str, List[str]], nodes: List[str], parents: List[str]) -> (List[str], List[str], List[str]):
+    '''Определяет ограничения для переменных m, которая используется для представления отношений частичного порядка между узлами.'''
     m_bounds = []
     m_binary = []
     m_subj = []
@@ -116,6 +121,7 @@ def define_m(children: Dict[str, List[str]], nodes: List[str], parents: List[str
 
 
 def define_s(nodes: List[str]) -> (List[str], List[str], List[str], List[str]):
+    '''Определяет ограничения для переменных s, которые используются для представления номера узла в расписании.'''
     s_int = []
     s_subj_1 = []
     s_subj_4 = []
@@ -160,6 +166,7 @@ def define_s(nodes: List[str]) -> (List[str], List[str], List[str], List[str]):
 
 
 def define_f(sizes: Dict[str, str], nodes: List[str]) -> List[str]:
+    '''Определяет ограничения для переменной F, которая представляет собой целевую функцию'''
     f_subj = []
     var = " w_"
     if args.reduce == "new":
@@ -174,6 +181,9 @@ def define_f(sizes: Dict[str, str], nodes: List[str]) -> List[str]:
 
 
 def define_l_w(children: Dict[str, List[str]], nodes: List[str]) -> (List[str], List[str], List[str], List[str], List[str]):
+    '''
+    Определяет ограничения и значения для переменных l и w, которые используются для представления отношений между узлами при использовании сведения "old".
+    '''
     l_bounds = []
     l_subj = []  # (8)
     w_subj = []  # (10)
@@ -215,6 +225,9 @@ def define_l_w(children: Dict[str, List[str]], nodes: List[str]) -> (List[str], 
 
 
 def define_y(children: Dict[str, List[str]], nodes: List[str]) -> (List[str], List[str], List[str]):
+    '''
+    Определяет ограничения и значения для переменных y, которые используются для представления отношений между узлами при использовании сведения "new".
+    '''
     y_bounds = []
     y_subj = []
     y_binary = []
@@ -270,6 +283,9 @@ def define_y(children: Dict[str, List[str]], nodes: List[str]) -> (List[str], Li
 
 
 def write_solver_input(file_path: str, children: Dict[str, List[str]], sizes: Dict[str, str], nodes: List[str], parents: List[str]):
+    '''
+    Записывает сгенерированные данные в файл в lp-формате, подходящем для LP-решателя.
+    '''
     l_bounds = []
     l_subj = []
     w_subj = []
@@ -348,6 +364,9 @@ def write_solver_input(file_path: str, children: Dict[str, List[str]], sizes: Di
 
 
 def parse(sort: str):
+    '''
+    Основная функция, которая вызывает read_parser_input для чтения входных данных и write_solver_input для записи выходных данных. В зависимости от параметра sort данные могут быть отсортированы различными способами.
+    '''
     files = []
     input_path = args.input
     if os.path.isdir(args.input):
@@ -356,7 +375,7 @@ def parse(sort: str):
         files.append(args.input[args.input.rfind("/")+1:])
         input_path = args.input[:args.input.rfind("/")+1]
     for file_name in files:
-        nodes, sizes, children, parents = read_pars_input(input_path + file_name, sort)
+        nodes, sizes, children, parents = read_parser_input(input_path + file_name, sort)
         if file_name.find(".") != -1:
             file_name = file_name[:file_name.rfind(".")]
         solver_tasks.append(file_name)
