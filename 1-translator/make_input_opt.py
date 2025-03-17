@@ -42,7 +42,7 @@ solver_tasks = []
 
 def read_pars_input(file_path: str, sort: str) -> (Set[str], Dict[str, str], Dict[str, List[str]], List[str]):
     f = open(file_path, "r")
-    nodes = set()
+    nodes = []
     sizes = {}
     children = {}
     nodes_with_par = set()
@@ -53,7 +53,7 @@ def read_pars_input(file_path: str, sort: str) -> (Set[str], Dict[str, str], Dic
         nums = findall(r"\d+", line)
         if not nums:
             continue
-        nodes.add(nums[0])
+        nodes.append(nums[0])
         sizes[nums[0]] = nums[1]
         children[nums[0]] = nums[2:]
         for node in nums[2:]:
